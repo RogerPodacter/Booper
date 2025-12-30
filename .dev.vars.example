@@ -1,0 +1,4 @@
+# Copy this file to .dev.vars and fill in your values
+# Generate keys with: npx web-push generate-vapid-keys
+
+VAPID_PRIVATE_KEY=your-private-key-here

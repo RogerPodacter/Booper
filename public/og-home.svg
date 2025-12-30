@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#ff3b5c" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0a0a0a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0a0a0a"/>
+
+  <!-- Left side: Icon with glow -->
+  <ellipse cx="300" cy="315" rx="220" ry="220" fill="url(#glow)"/>
+  <circle cx="300" cy="315" r="100" fill="none" stroke="#ff3b5c" stroke-width="14"/>
+  <circle cx="300" cy="315" r="30" fill="#ff3b5c"/>
+
+  <!-- Right side: Text -->
+  <text x="520" y="300" font-family="system-ui, -apple-system, sans-serif" font-size="160" font-weight="700" fill="#ffffff" letter-spacing="-6">Booper</text>
+  <text x="520" y="390" font-family="system-ui, -apple-system, sans-serif" font-size="48" fill="#71717a">Disappearing photos &amp; videos</text>
+</svg>

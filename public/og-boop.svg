@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#ff3b5c" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#0a0a0a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#0a0a0a"/>
+
+  <!-- Left side: Icon with glow + CTA -->
+  <ellipse cx="300" cy="280" rx="220" ry="220" fill="url(#glow)"/>
+  <circle cx="300" cy="280" r="100" fill="none" stroke="#ff3b5c" stroke-width="14"/>
+  <circle cx="300" cy="280" r="30" fill="#ff3b5c"/>
+  <text x="300" y="485" font-family="system-ui, -apple-system, sans-serif" font-size="56" fill="#ff3b5c" text-anchor="middle">tap to reveal</text>
+
+  <!-- Right side: Text -->
+  <text x="540" y="220" font-family="system-ui, -apple-system, sans-serif" font-size="64" fill="#71717a">someone sent you a</text>
+  <text x="540" y="420" font-family="system-ui, -apple-system, sans-serif" font-size="220" font-weight="700" fill="#ffffff" letter-spacing="-8">boop</text>
+</svg>

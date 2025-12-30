@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.kv/
+*.db
+.env
+.dev.vars
+wrangler.toml
+.wrangler
+.DS_Store
+repomix-output*
+.claude
+.kv
+.wrangler

@@ -1,0 +1,16 @@
+name = "boop"
+compatibility_date = "2025-07-18"
+pages_build_output_dir = "dist/client"
+
+[vars]
+# Set to "true" to enable push notifications (requires VAPID keys)
+NOTIFICATIONS_ENABLED = "false"
+# Generate with: npx web-push generate-vapid-keys
+VAPID_PUBLIC_KEY = "YOUR_VAPID_PUBLIC_KEY_HERE"
+# Contact email for push services (mailto: prefix required)
+VAPID_SUBJECT = "mailto:you@example.com"
+
+[[kv_namespaces]]
+binding = "BOOP_KV"
+# Create with: npx wrangler kv namespace create BOOP_KV
+id = "YOUR_KV_NAMESPACE_ID_HERE"
