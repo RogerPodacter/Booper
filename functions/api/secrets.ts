@@ -44,7 +44,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (encryptedMeta.length > 10 * 1024) { // 10KB max for metadata
     return Response.json({ error: 'Metadata exceeds size limit.' }, { status: 400 });
   }
-  if (encryptedContent.length > 2.5 * 1024 * 1024) {
+  if (encryptedContent.length > 3 * 1024 * 1024) {
     return Response.json({ error: 'Content exceeds size limit.' }, { status: 400 });
   }
   const pushSubscriptionStr = pushSubscription ? JSON.stringify(pushSubscription) : null;

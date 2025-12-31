@@ -14,7 +14,8 @@ interface HistoryEntry {
 const HISTORY_KEY = 'booper_history'
 const ONBOARDING_KEY = 'booper_onboarded'
 const MAX_HISTORY = 50
-const MAX_VIDEO_DURATION = 10 // seconds
+const MAX_VIDEO_DURATION = 15 // seconds
+const MAX_CONTENT_SIZE = 3 * 1024 * 1024 // 3MB - must match server limit in functions/api/secrets.ts
 
 export default function Home() {
   const [photo, setPhoto] = useState<string | null>(null)
@@ -404,7 +405,7 @@ export default function Home() {
 
       const mediaRecorder = new MediaRecorder(combinedStream, {
         ...(mimeType && { mimeType }),
-        videoBitsPerSecond: 750000, // 0.75 Mbps - keeps 15s ~1MB, safe under 2.5MB after base64
+        videoBitsPerSecond: 600000, // 0.6 Mbps - keeps 15s ~1.2MB, safe under 3MB limit
         audioBitsPerSecond: 64000,
       })
 
@@ -665,10 +666,6 @@ export default function Home() {
 
     try {
       const compressed = await compressImage(file)
-      if (compressed.length > 2.5 * 1024 * 1024) {
-        setError('Compressed image still too large. Try a smaller image.')
-        return
-      }
       setPhoto(compressed)
       setStep('edit')
       setError('')
@@ -744,6 +741,13 @@ export default function Home() {
       const metaObj = { contentType, viewDuration: duration }
       const encryptedMeta = await encrypt(JSON.stringify(metaObj), key)
       const encryptedContent = await encrypt(JSON.stringify(contentObj), key)
+
+      // Check size before upload (fail fast)
+      if (encryptedContent.length > MAX_CONTENT_SIZE) {
+        setError('Content too large. Try a shorter video or smaller image.')
+        setStep('edit')
+        return
+      }
 
       // Get push subscription if available
       let pushSubscription = null
@@ -1317,7 +1321,7 @@ export default function Home() {
               <div>
                 <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-3">How it works</h2>
                 <p className="text-zinc-300 leading-relaxed">
-                  <span className="text-white font-medium">Tap</span> to take a photo, <span className="text-white font-medium">hold</span> to record a video (up to 10s). Send a link. Your recipient opens it once, sees it briefly, then it's gone forever. We can't see your content—only you and your recipient can. Unopened boops self-destruct after 7 days.
+                  <span className="text-white font-medium">Tap</span> to take a photo, <span className="text-white font-medium">hold</span> to record a video (up to 15s). Send a link. Your recipient opens it once, sees it briefly, then it's gone forever. We can't see your content—only you and your recipient can. Unopened boops self-destruct after 7 days.
                 </p>
               </div>
 

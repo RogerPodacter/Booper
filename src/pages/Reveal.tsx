@@ -192,8 +192,8 @@ export default function Reveal() {
       setStatus('viewing')
 
       if (isVideo) {
-        // Videos: hard 20s deadline prevents pause/stall abuse (max recording is 10s)
-        videoEndTimeoutRef.current = window.setTimeout(handleExpire, 20000)
+        // Videos: hard 30s deadline prevents pause/stall abuse (max recording is 15s)
+        videoEndTimeoutRef.current = window.setTimeout(handleExpire, 30000)
       } else {
         // Photos: countdown timer
         startTimeRef.current = Date.now()
