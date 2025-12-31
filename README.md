@@ -13,8 +13,9 @@ Inspired by [Explode app](https://x.com/nikitabier/status/1879206793118658974) b
 *Note: Booper does not detect or block screenshots. And even if we did, the recipient could just take a photo of the screen! Boop accordingly.*
 
 <p align="center">
-   <img src="https://github.com/user-attachments/assets/7c097ed7-7d76-4fbe-bef8-8cf6a8c25591" width="200">
+   <img src="https://github.com/user-attachments/assets/76cb4a62-da6e-4883-9ff3-f6aa7fdb6226" width="200">
 </p>
+
 
 ## Features
 
