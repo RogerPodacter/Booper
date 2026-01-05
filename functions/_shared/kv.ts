@@ -4,11 +4,13 @@ export interface Secret {
   encrypted_content: string;  // actual photo/video - returned by reveal
   revealed: boolean;
   push_subscription: string | null;
+  max_views: number;          // max allowed views (default 1)
+  view_count: number;         // current view count
 }
 
 export async function createSecret(
   kv: KVNamespace,
-  secret: Omit<Secret, 'revealed'>
+  secret: Omit<Secret, 'revealed' | 'view_count'>
 ): Promise<{ success: boolean }> {
   // Check if ID already exists
   const existing = await kv.get(`secret:${secret.id}`);
@@ -18,7 +20,8 @@ export async function createSecret(
 
   const data: Secret = {
     ...secret,
-    revealed: false
+    revealed: false,
+    view_count: 0
   };
 
   await kv.put(`secret:${secret.id}`, JSON.stringify(data), {
@@ -42,20 +45,40 @@ export async function getSecret(kv: KVNamespace, id: string): Promise<Secret | n
 export async function revealSecret(
   kv: KVNamespace,
   id: string
-): Promise<{ success: boolean; content?: string }> {
+): Promise<{ success: boolean; content?: string; viewCount?: number; maxViews?: number }> {
   const secret = await getSecret(kv, id);
   if (!secret || secret.revealed) {
     return { success: false };
   }
 
+  // Backwards compatibility: treat missing max_views as 1
+  const maxViews = secret.max_views ?? 1;
+  const currentCount = secret.view_count ?? 0;
+
+  // Check if already at max views
+  if (currentCount >= maxViews) {
+    return { success: false };
+  }
+
   const content = secret.encrypted_content;
+  const newCount = currentCount + 1;
 
-  // Replace with minimal "revealed" tombstone
-  await kv.put(`secret:${id}`, JSON.stringify({ revealed: true }), {
-    expirationTtl: 48 * 60 * 60
-  });
+  if (newCount >= maxViews) {
+    // Final view - replace with minimal "revealed" tombstone
+    await kv.put(`secret:${id}`, JSON.stringify({ revealed: true }), {
+      expirationTtl: 48 * 60 * 60
+    });
+  } else {
+    // More views remaining - update count
+    await kv.put(`secret:${id}`, JSON.stringify({
+      ...secret,
+      view_count: newCount
+    }), {
+      expirationTtl: 7 * 24 * 60 * 60 // Keep original 7-day TTL
+    });
+  }
 
-  return { success: true, content };
+  return { success: true, content, viewCount: newCount, maxViews };
 }
 
 const RATE_LIMIT_SALT = 'booper-rl-2025';

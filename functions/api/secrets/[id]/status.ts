@@ -19,9 +19,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ status: 'revealed' }, { headers: NO_CACHE });
   }
 
+  // Backwards compatibility: treat missing values as single-view
+  const maxViews = secret.max_views ?? 1;
+  const viewCount = secret.view_count ?? 0;
+
   // Return encrypted metadata - client decrypts to get type/duration
   return Response.json({
     status: 'pending',
-    encryptedMeta: secret.encrypted_meta
+    encryptedMeta: secret.encrypted_meta,
+    maxViews,
+    viewCount,
+    viewsRemaining: maxViews - viewCount
   }, { headers: NO_CACHE });
 };

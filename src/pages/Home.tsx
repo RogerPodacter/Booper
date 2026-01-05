@@ -25,6 +25,8 @@ export default function Home() {
   const [isEditingText, setIsEditingText] = useState(false)
   const [showTimerPicker, setShowTimerPicker] = useState(false)
   const [duration, setDuration] = useState(5)
+  const [maxViews, setMaxViews] = useState(1)
+  const [showViewsPicker, setShowViewsPicker] = useState(false)
   const [step, setStep] = useState<Step>('camera')
   const [error, setError] = useState('')
   const [notifStatus, setNotifStatus] = useState<NotificationStatus>('loading')
@@ -771,7 +773,8 @@ export default function Home() {
           id,
           encryptedMeta,
           encryptedContent,
-          pushSubscription
+          pushSubscription,
+          maxViews
         })
       }).then(async (res) => {
         if (!res.ok) {
@@ -826,7 +829,9 @@ export default function Home() {
     setTextPosition(50)
     setIsEditingText(false)
     setShowTimerPicker(false)
+    setShowViewsPicker(false)
     setDuration(5)
+    setMaxViews(1)
     setPreviewMuted(true)
     setStep('camera')
     setError('')
@@ -841,6 +846,8 @@ export default function Home() {
     setTextPosition(50)
     setIsEditingText(false)
     setShowTimerPicker(false)
+    setShowViewsPicker(false)
+    setMaxViews(1)
     setPreviewMuted(true)
     setStep('camera')
   }
@@ -1140,9 +1147,53 @@ export default function Home() {
             </div>
           )}
 
+          {/* Views picker popup */}
+          {showViewsPicker && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50" onClick={() => setShowViewsPicker(false)}>
+              <div className="bg-zinc-800 rounded-2xl p-3" onClick={(e) => e.stopPropagation()}>
+                <p className="text-zinc-400 text-sm text-center mb-2">Max views</p>
+                <div className="flex gap-1">
+                  {[1, 5, 10, 20].map((v) => (
+                    <button
+                      key={v}
+                      className={`w-12 h-12 rounded-xl font-medium transition-all ${
+                        maxViews === v ? 'bg-white text-black' : 'text-white hover:bg-zinc-700'
+                      }`}
+                      onClick={() => {
+                        setMaxViews(v)
+                        setShowViewsPicker(false)
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Bottom controls */}
           <div className="fixed left-0 right-0 pt-5 px-5 pb-4 z-20 bottom-safe">
-            <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
+            <div className="flex items-center justify-center gap-4 max-w-sm mx-auto">
+              {/* Views picker button */}
+              <button
+                className={`relative w-11 h-11 rounded-full flex items-center justify-center ${maxViews > 1 ? 'bg-blue-500' : 'bg-zinc-700/60'}`}
+                onClick={() => setShowViewsPicker(true)}
+                title="Max views"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                {maxViews > 1 && (
+                  <span className="absolute -top-1 -right-1 bg-white text-black text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {maxViews}
+                  </span>
+                )}
+              </button>
+
               <button
                 className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
                 onClick={() => setIsEditingText(true)}

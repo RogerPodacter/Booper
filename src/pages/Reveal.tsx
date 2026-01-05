@@ -4,17 +4,45 @@ import { importKey, decrypt } from '../crypto'
 import PixelExplosion from '../components/PixelExplosion'
 import PixelatedImage from '../components/PixelatedImage'
 
-type Status = 'loading' | 'ready' | 'revealing' | 'viewing' | 'exploding' | 'expired' | 'already_opened' | 'not_found' | 'error'
+type Status = 'loading' | 'ready' | 'revealing' | 'viewing' | 'exploding' | 'expired' | 'already_opened' | 'already_viewed_here' | 'not_found' | 'error'
+
+const VIEWED_KEY = 'booper_viewed'
 
 interface SecretData {
   contentType: 'photo' | 'video'
   viewDuration: number
 }
 
+// Helper to check if this device has already viewed a boop
+function hasViewedOnDevice(id: string): boolean {
+  try {
+    const viewed = JSON.parse(localStorage.getItem(VIEWED_KEY) || '[]')
+    return Array.isArray(viewed) && viewed.includes(id)
+  } catch {
+    return false
+  }
+}
+
+// Helper to mark a boop as viewed on this device
+function markViewedOnDevice(id: string): void {
+  try {
+    const viewed = JSON.parse(localStorage.getItem(VIEWED_KEY) || '[]')
+    if (Array.isArray(viewed) && !viewed.includes(id)) {
+      // Keep only last 100 entries to prevent unbounded growth
+      const updated = [id, ...viewed].slice(0, 100)
+      localStorage.setItem(VIEWED_KEY, JSON.stringify(updated))
+    }
+  } catch {
+    // localStorage unavailable
+  }
+}
+
 export default function Reveal() {
   const { id } = useParams<{ id: string }>()
   const [status, setStatus] = useState<Status>('loading')
   const [secretData, setSecretData] = useState<SecretData | null>(null)
+  const [viewsRemaining, setViewsRemaining] = useState<number | null>(null)
+  const [maxViews, setMaxViews] = useState<number>(1)
   const [photoData, setPhotoData] = useState<{ image: string; text?: string; textPosition?: number } | null>(null)
   const [videoData, setVideoData] = useState<{ video: string; text?: string; textPosition?: number } | null>(null)
   const [videoMuted, setVideoMuted] = useState(false)
@@ -52,6 +80,18 @@ export default function Reveal() {
       } else if (data.status === 'revealed') {
         setStatus('already_opened')
       } else if (data.status === 'pending') {
+        // Store view info
+        const serverMaxViews = data.maxViews ?? 1
+        const serverViewsRemaining = data.viewsRemaining ?? 1
+        setMaxViews(serverMaxViews)
+        setViewsRemaining(serverViewsRemaining)
+
+        // For multi-view boops, check if this device already viewed it
+        if (serverMaxViews > 1 && id && hasViewedOnDevice(id)) {
+          setStatus('already_viewed_here')
+          return
+        }
+
         // Decrypt metadata to get type and duration
         if (!keyString) {
           setError('Invalid link - missing encryption key')
@@ -166,6 +206,11 @@ export default function Reveal() {
       }
 
       const { encryptedContent } = await response.json()
+
+      // Mark as viewed on this device (for multi-view boops)
+      if (id && maxViews > 1) {
+        markViewedOnDevice(id)
+      }
 
       const key = await importKey(keyString)
       const decrypted = await decrypt(encryptedContent, key)
@@ -290,6 +335,10 @@ export default function Reveal() {
     return <MessageScreen icon="👀" title="Already opened" subtitle="This boop has already been viewed." />
   }
 
+  if (status === 'already_viewed_here') {
+    return <MessageScreen icon="📱" title="Already viewed" subtitle="You've already viewed this boop on this device." />
+  }
+
   if (status === 'expired') {
     return <MessageScreen icon="💨" title="Poof!" subtitle="This boop has vanished." />
   }
@@ -299,6 +348,7 @@ export default function Reveal() {
   }
 
   if (status === 'ready') {
+    const isGroupBoop = maxViews > 1
     return (
       <div className="flex-1 flex flex-col p-5 max-w-md mx-auto w-full">
         <header className="text-center py-10">
@@ -314,6 +364,11 @@ export default function Reveal() {
               ? "Watch once, then it's gone."
               : `You have ${secretData?.viewDuration} second${secretData?.viewDuration !== 1 ? 's' : ''} to view it.`}
           </p>
+          {isGroupBoop && viewsRemaining !== null && (
+            <p className="text-blue-400 text-sm">
+              {viewsRemaining} view{viewsRemaining !== 1 ? 's' : ''} remaining
+            </p>
+          )}
           {notificationsEnabled && (
             <p className="text-zinc-600 text-sm mt-2">
               The sender may be notified (incl. approx location).

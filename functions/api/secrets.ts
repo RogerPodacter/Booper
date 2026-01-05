@@ -17,6 +17,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     encryptedMeta?: string;
     encryptedContent?: string;
     pushSubscription?: unknown;
+    maxViews?: number;
   };
 
   try {
@@ -25,7 +26,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { id, encryptedMeta, encryptedContent, pushSubscription } = body;
+  const { id, encryptedMeta, encryptedContent, pushSubscription, maxViews } = body;
 
   if (!id || !encryptedMeta || !encryptedContent) {
     return Response.json({ error: 'Missing required fields' }, { status: 400 });
@@ -52,12 +53,22 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Push subscription exceeds size limit.' }, { status: 400 });
   }
 
+  // Validate maxViews (default 1, max 100)
+  let validatedMaxViews = 1;
+  if (maxViews !== undefined) {
+    if (typeof maxViews !== 'number' || !Number.isInteger(maxViews) || maxViews < 1 || maxViews > 100) {
+      return Response.json({ error: 'maxViews must be an integer between 1 and 100' }, { status: 400 });
+    }
+    validatedMaxViews = maxViews;
+  }
+
   try {
     const result = await createSecret(kv, {
       id,
       encrypted_meta: encryptedMeta,
       encrypted_content: encryptedContent,
-      push_subscription: pushSubscriptionStr
+      push_subscription: pushSubscriptionStr,
+      max_views: validatedMaxViews
     });
 
     if (!result.success) {
