@@ -46,17 +46,28 @@ export default function PixelExplosion({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas to viewport size
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
+    // Set canvas to container size with DPR scaling for sharp rendering
+    const rect = canvas.getBoundingClientRect()
+    const dpr = window.devicePixelRatio || 1
+    const cssWidth = Math.round(rect.width)
+    const cssHeight = Math.round(rect.height)
 
-    // Create capture canvas
+    // Guard against 0×0 dimensions (can happen during layout changes)
+    if (cssWidth === 0 || cssHeight === 0) return
+
+    canvas.width = cssWidth * dpr
+    canvas.height = cssHeight * dpr
+    canvas.style.width = `${cssWidth}px`
+    canvas.style.height = `${cssHeight}px`
+    ctx.scale(dpr, dpr)
+
+    // Create capture canvas at CSS pixel size (for particle sampling)
     const capture = document.createElement('canvas')
     const captureCtx = capture.getContext('2d')
     if (!captureCtx) return
 
-    capture.width = canvas.width
-    capture.height = canvas.height
+    capture.width = cssWidth
+    capture.height = cssHeight
 
     // Draw source to capture canvas
     const drawSource = (): boolean => {
@@ -140,7 +151,8 @@ export default function PixelExplosion({
       if (!startTime) startTime = time
       const elapsed = time - startTime
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      // Clear using CSS dimensions (ctx is scaled by DPR)
+      ctx.clearRect(0, 0, cssWidth, cssHeight)
 
       let active = 0
 
@@ -157,7 +169,8 @@ export default function PixelExplosion({
           p.alpha = Math.max(0, 1 - (elapsed - fadeStart) / (duration - fadeStart))
         }
 
-        if (p.alpha <= 0 || p.y > canvas.height + 50) continue
+        // Bounds check using CSS dimensions
+        if (p.alpha <= 0 || p.y > cssHeight + 50) continue
         active++
 
         // Draw
@@ -205,8 +218,8 @@ export default function PixelExplosion({
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 z-50 pointer-events-none"
-      style={{ width: '100vw', height: '100vh' }}
+      className="absolute inset-0 z-50 pointer-events-none"
+      style={{ width: '100%', height: '100%' }}
     />
   )
 }
@@ -225,11 +238,14 @@ function drawMediaCover(
 
   let drawWidth: number, drawHeight: number, offsetX = 0, offsetY = 0
 
+  // Use "cover" logic: fill canvas, may crop edges
   if (canvasRatio > mediaRatio) {
+    // Canvas is wider than media - fit to width, crop top/bottom
     drawWidth = width
     drawHeight = width / mediaRatio
     offsetY = (height - drawHeight) / 2
   } else {
+    // Canvas is taller than media - fit to height, crop left/right
     drawHeight = height
     drawWidth = height * mediaRatio
     offsetX = (width - drawWidth) / 2

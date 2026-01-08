@@ -20,6 +20,14 @@
   bottom: env(safe-area-inset-bottom, 0px);
 }
 
+.pt-safe {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 2rem);
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
+}
+
 @layer components {
   .btn {
     @apply flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl text-base font-semibold cursor-pointer transition-all w-full;

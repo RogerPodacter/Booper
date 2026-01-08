@@ -28,7 +28,6 @@ export default function PixelatedImage({ src, pixelation, className = '' }: Pixe
     canvas.height = rect.height
 
     if (pixelation <= 0) {
-      // No pixelation - draw with cover behavior
       drawImageCover(ctx, img, canvas.width, canvas.height)
       return
     }

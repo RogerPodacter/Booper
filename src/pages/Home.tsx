@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { generateKey, exportKey, encrypt, compressImage } from '../crypto'
+import Stage from '../components/Stage'
 
 type Step = 'camera' | 'edit' | 'sending'
 type NotificationStatus = 'loading' | 'unsupported' | 'denied' | 'prompt' | 'subscribed'
@@ -48,6 +49,7 @@ export default function Home() {
   // Video recording state
   const [isRecording, setIsRecording] = useState(false)
   const [recordingProgress, setRecordingProgress] = useState(0)
+
   const [previewMuted, setPreviewMuted] = useState(true)
 
   // Refs
@@ -84,15 +86,22 @@ export default function Home() {
           streamRef.current = null
         }
 
+        // Counterintuitive: on landscape screens we request portrait ratio (9/16)
+        // because the camera sensor orientation differs from screen orientation
+        const isLandscapeNow = window.screen?.orientation?.type?.startsWith('landscape')
+        ?? (window.innerWidth > window.innerHeight)
+        const requestedAspectRatio = isLandscapeNow ? 9/16 : 16/9
+        
         const constraints: MediaStreamConstraints = {
           video: {
-            facingMode
+            facingMode,
+            aspectRatio: { ideal: requestedAspectRatio },
           },
           audio: false
         }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
-
+        
         if (cancelled) {
           stream.getTracks().forEach(track => track.stop())
           return
@@ -325,15 +334,42 @@ export default function Home() {
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')!
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // Fixed 9:16 output - always capture to this aspect ratio
+    const targetW = 1080
+    const targetH = 1920
+    const targetRatio = 9 / 16
 
+    const srcW = video.videoWidth
+    const srcH = video.videoHeight
+    const srcRatio = srcW / srcH
+
+    // Center-cover crop to 9:16
+    let cropX: number, cropY: number, cropW: number, cropH: number
+    if (srcRatio > targetRatio) {
+      // Source wider than 9:16 - crop sides
+      cropH = srcH
+      cropW = srcH * targetRatio
+      cropX = (srcW - cropW) / 2
+      cropY = 0
+    } else {
+      // Source taller than 9:16 - crop top/bottom
+      cropW = srcW
+      cropH = srcW / targetRatio
+      cropX = 0
+      cropY = (srcH - cropH) / 2
+    }
+
+    // Scale output to not exceed source resolution
+    const scale = Math.min(1, cropW / targetW, cropH / targetH)
+    canvas.width = Math.round(targetW * scale)
+    canvas.height = Math.round(targetH * scale)
+
+    // Mirror style: capture what the user saw (selfies stay mirrored)
     if (facingMode === 'user') {
       ctx.translate(canvas.width, 0)
       ctx.scale(-1, 1)
     }
-
-    ctx.drawImage(video, 0, 0)
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
 
     // Turn off flash
     if (useScreenFlash) {
@@ -725,7 +761,8 @@ export default function Home() {
         contentObj = {
           video: videoDataUrl,
           text: overlayText || undefined,
-          textPosition: overlayText ? textPosition : undefined
+          textPosition: overlayText ? textPosition : undefined,
+          mirrored: facingMode === 'user' || undefined
         }
       } else {
         contentObj = {
@@ -863,21 +900,95 @@ export default function Home() {
         src="/flash-hdr.mp4"
       />
 
-      {/* Video viewfinder - always mounted, hidden during edit/send */}
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className={`pointer-events-none user-select-none absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${step !== 'camera' ? 'invisible' : ''} ${!cameraReady ? 'opacity-0' : ''}`}
-      />
+      {/* Stage - 9:16 centered container for all media content */}
+      <Stage>
+        {/* Video viewfinder - always mounted, hidden during edit/send */}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`pointer-events-none user-select-none absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${step !== 'camera' ? 'invisible' : ''} ${!cameraReady ? 'opacity-0' : ''}`}
+        />
+
+        {/* Edit content - visible only in edit step */}
+        {step === 'edit' && video && (
+          <video
+            src={video}
+            className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+            autoPlay
+            loop
+            muted={previewMuted}
+            playsInline
+          />
+        )}
+        {step === 'edit' && photo && !video && (
+          <img
+            src={photo}
+            alt="Your photo"
+            className="absolute inset-0 w-full h-full object-cover"
+            draggable={false}
+          />
+        )}
+
+        {/* Text overlay - inside Stage for proper positioning */}
+        {step === 'edit' && (overlayText || isEditingText) && (
+          <div
+            className="absolute left-0 right-0 z-10 touch-none"
+            style={{ top: `${textPosition}%`, transform: 'translateY(-50%)' }}
+            onTouchStart={(e) => {
+              if (isEditingText) return
+              const startY = e.touches[0].clientY
+              const startPos = textPosition
+              const container = e.currentTarget.parentElement
+              if (!container) return
+
+              const handleMove = (ev: TouchEvent) => {
+                const deltaY = ev.touches[0].clientY - startY
+                const containerHeight = container.clientHeight
+                const newPos = startPos + (deltaY / containerHeight) * 100
+                setTextPosition(Math.max(15, Math.min(85, newPos)))
+              }
+              const handleEnd = () => {
+                document.removeEventListener('touchmove', handleMove)
+                document.removeEventListener('touchend', handleEnd)
+              }
+              document.addEventListener('touchmove', handleMove)
+              document.addEventListener('touchend', handleEnd)
+            }}
+          >
+            {isEditingText ? (
+              <input
+                type="text"
+                autoFocus
+                className="w-full px-5 py-3 bg-black/50 text-white text-xl font-medium text-center focus:outline-none"
+                placeholder="Add text..."
+                value={overlayText}
+                onChange={(e) => setOverlayText(e.target.value.slice(0, 200))}
+                maxLength={200}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setIsEditingText(false)
+                }}
+                onBlur={() => setIsEditingText(false)}
+              />
+            ) : (
+              <button
+                className="w-full px-5 py-3 bg-black/50 text-white text-xl font-medium text-center break-words"
+                onClick={() => setIsEditingText(true)}
+              >
+                {overlayText || 'Tap to add text'}
+              </button>
+            )}
+          </div>
+        )}
+      </Stage>
 
       {/* === CAMERA UI === */}
       {step === 'camera' && (
         <>
           {/* Camera error fallback */}
           {cameraError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 p-5">
+            <div className="fixed inset-0 flex flex-col items-center justify-center bg-black z-10 p-5">
               <p className="text-zinc-400 text-center mb-4">{cameraError}</p>
               <button
                 className="btn btn-primary max-w-xs"
@@ -889,7 +1000,7 @@ export default function Home() {
           )}
 
           {/* Top controls */}
-          <div className="absolute top-0 left-0 right-0 p-5 flex justify-between items-center z-20">
+          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20">
             {/* Show flash button for front camera (screen flash) or back camera with torch */}
             {(facingMode === 'user' || hasFlash) ? (
               <button
@@ -943,7 +1054,7 @@ export default function Home() {
           </div>
 
           {/* Bottom controls */}
-          <div className="fixed left-0 right-0 pt-5 px-5 pb-6 z-20 bottom-safe">
+          <div className="fixed bottom-0 left-0 right-0 p-5 pb-safe z-20">
             <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
               <button
                 className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
@@ -1010,22 +1121,27 @@ export default function Home() {
         </>
       )}
 
-      {/* === EDIT UI === */}
+      {/* === EDIT UI (controls only, content is in Stage) === */}
       {step === 'edit' && (photo || video) && (
         <>
-          {video ? (
-            <>
-              <video
-                src={video}
-                className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
-                autoPlay
-                loop
-                muted={previewMuted}
-                playsInline
-              />
-              {/* Mute/unmute button */}
+          {/* Top controls */}
+          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20">
+            {/* Back button */}
+            <button
+              className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
+              onClick={handleBack}
+              aria-label="Back"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            {/* Mute/unmute button for video */}
+            {video ? (
               <button
-                className="absolute top-5 right-5 z-30 w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
+                className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
                 onClick={() => setPreviewMuted(!previewMuted)}
                 aria-label={previewMuted ? 'Unmute' : 'Mute'}
               >
@@ -1042,80 +1158,9 @@ export default function Home() {
                   </svg>
                 )}
               </button>
-            </>
-          ) : (
-            <img
-              src={photo!}
-              alt="Your photo"
-              className="absolute inset-0 w-full h-full object-cover"
-              draggable={false}
-            />
-          )}
-
-          {/* Text overlay - draggable */}
-          {(overlayText || isEditingText) && (
-            <div
-              className="absolute left-0 right-0 z-10 touch-none"
-              style={{ top: `${textPosition}%`, transform: 'translateY(-50%)' }}
-              onTouchStart={(e) => {
-                if (isEditingText) return
-                const startY = e.touches[0].clientY
-                const startPos = textPosition
-                const container = e.currentTarget.parentElement
-                if (!container) return
-
-                const handleMove = (e: TouchEvent) => {
-                  const deltaY = e.touches[0].clientY - startY
-                  const containerHeight = container.clientHeight
-                  const newPos = startPos + (deltaY / containerHeight) * 100
-                  setTextPosition(Math.max(15, Math.min(85, newPos)))
-                }
-                const handleEnd = () => {
-                  document.removeEventListener('touchmove', handleMove)
-                  document.removeEventListener('touchend', handleEnd)
-                }
-                document.addEventListener('touchmove', handleMove)
-                document.addEventListener('touchend', handleEnd)
-              }}
-            >
-              {isEditingText ? (
-                <input
-                  type="text"
-                  autoFocus
-                  className="w-full px-5 py-3 bg-black/50 text-white text-xl font-medium text-center focus:outline-none"
-                  placeholder="Add text..."
-                  value={overlayText}
-                  onChange={(e) => setOverlayText(e.target.value.slice(0, 200))}
-                  maxLength={200}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') setIsEditingText(false)
-                  }}
-                  onBlur={() => setIsEditingText(false)}
-                />
-              ) : (
-                <button
-                  className="w-full px-5 py-3 bg-black/50 text-white text-xl font-medium text-center break-words"
-                  onClick={() => setIsEditingText(true)}
-                >
-                  {overlayText || 'Tap to add text'}
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Top controls */}
-          <div className="absolute top-0 left-0 right-0 p-5 flex justify-between items-center z-20">
-            <button
-              className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-              onClick={handleBack}
-              aria-label="Back"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-            <div className="w-11" />
+            ) : (
+              <div className="w-11" />
+            )}
           </div>
 
           {/* Timer picker popup */}
@@ -1141,7 +1186,7 @@ export default function Home() {
           )}
 
           {/* Bottom controls */}
-          <div className="fixed left-0 right-0 pt-5 px-5 pb-4 z-20 bottom-safe">
+          <div className="fixed bottom-0 left-0 right-0 p-5 pb-safe z-20">
             <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
               <button
                 className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
@@ -1372,7 +1417,7 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="px-8 pb-8 bottom-safe">
+          <div className="px-8 pb-safe">
             <button
               className="w-full py-4 rounded-full bg-white text-black font-semibold text-lg active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
               onClick={completeOnboarding}

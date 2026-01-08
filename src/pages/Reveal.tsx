@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { importKey, decrypt } from '../crypto'
 import PixelExplosion from '../components/PixelExplosion'
 import PixelatedImage from '../components/PixelatedImage'
+import Stage from '../components/Stage'
 
 type Status = 'loading' | 'ready' | 'revealing' | 'viewing' | 'exploding' | 'expired' | 'already_opened' | 'not_found' | 'error'
 
@@ -16,7 +17,7 @@ export default function Reveal() {
   const [status, setStatus] = useState<Status>('loading')
   const [secretData, setSecretData] = useState<SecretData | null>(null)
   const [photoData, setPhotoData] = useState<{ image: string; text?: string; textPosition?: number } | null>(null)
-  const [videoData, setVideoData] = useState<{ video: string; text?: string; textPosition?: number } | null>(null)
+  const [videoData, setVideoData] = useState<{ video: string; text?: string; textPosition?: number; mirrored?: boolean } | null>(null)
   const [videoMuted, setVideoMuted] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
   const [error, setError] = useState('')
@@ -345,63 +346,68 @@ export default function Reveal() {
 
     return (
       <div className="flex-1 flex flex-col relative bg-black overflow-hidden select-none">
-        {/* Pixel explosion */}
-        <PixelExplosion
-          videoElement={videoRef.current}
-          trigger={isExploding}
-          onComplete={handleExplosionComplete}
-          pixelSize={100}
-        />
-
-        {/* Mute/unmute button */}
-        {!isExploding && (
-          <button
-            className="absolute top-5 left-5 z-10 w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
-            onClick={() => setVideoMuted(!videoMuted)}
-            aria-label={videoMuted ? 'Unmute' : 'Mute'}
-          >
-            {videoMuted ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <line x1="23" y1="9" x2="17" y2="15" />
-                <line x1="17" y1="9" x2="23" y2="15" />
-              </svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-            )}
-          </button>
-        )}
-
-        {/* Video container */}
-        <div
-          className="absolute inset-0"
-          style={{ opacity: isExploding ? 0 : 1 }}
-        >
-          <video
-            ref={videoRef}
-            src={videoData.video}
-            className="absolute inset-0 w-full h-full object-cover"
-            autoPlay
-            muted={videoMuted}
-            playsInline
-            onEnded={() => {
-              // Clear hard deadline, set short delay before explosion
-              if (videoEndTimeoutRef.current) clearTimeout(videoEndTimeoutRef.current)
-              videoEndTimeoutRef.current = window.setTimeout(handleExpire, 500)
-            }}
+        {/* Video in Stage */}
+        <Stage>
+          {/* Pixel explosion - inside Stage for correct positioning */}
+          <PixelExplosion
+            videoElement={videoRef.current}
+            trigger={isExploding}
+            onComplete={handleExplosionComplete}
+            pixelSize={100}
           />
-          {videoData.text && (
-            <div
-              className="absolute left-0 right-0 text-center px-5 py-3 bg-black/50 text-white text-xl font-medium break-words z-10 pointer-events-none"
-              style={{ top: `${videoData.textPosition ?? 50}%`, transform: 'translateY(-50%)' }}
+
+          <div
+            className="absolute inset-0"
+            style={{ opacity: isExploding ? 0 : 1 }}
+          >
+            <video
+              ref={videoRef}
+              src={videoData.video}
+              className={`absolute inset-0 w-full h-full object-cover ${videoData.mirrored ? 'scale-x-[-1]' : ''}`}
+              autoPlay
+              muted={videoMuted}
+              playsInline
+              onEnded={() => {
+                // Clear hard deadline, set short delay before explosion
+                if (videoEndTimeoutRef.current) clearTimeout(videoEndTimeoutRef.current)
+                videoEndTimeoutRef.current = window.setTimeout(handleExpire, 500)
+              }}
+            />
+
+            {videoData.text && (
+              <div
+                className="absolute left-0 right-0 text-center px-5 py-3 bg-black/50 text-white text-xl font-medium break-words z-10 pointer-events-none"
+                style={{ top: `${videoData.textPosition ?? 50}%`, transform: 'translateY(-50%)' }}
+              >
+                {videoData.text}
+              </div>
+            )}
+          </div>
+        </Stage>
+
+        {/* Mute/unmute button - fixed positioning with safe area */}
+        {!isExploding && (
+          <div className="fixed top-0 left-0 right-0 p-4 pt-safe z-20">
+            <button
+              className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
+              onClick={() => setVideoMuted(!videoMuted)}
+              aria-label={videoMuted ? 'Unmute' : 'Mute'}
             >
-              {videoData.text}
-            </div>
-          )}
-        </div>
+              {videoMuted ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -412,54 +418,59 @@ export default function Reveal() {
 
     return (
       <div className="flex-1 flex flex-col relative bg-black overflow-hidden select-none">
-        {/* Pixel explosion */}
-        <PixelExplosion
-          imageSrc={photoData.image}
-          trigger={isExploding}
-          onComplete={handleExplosionComplete}
-          pixelSize={100}
-        />
+        {/* Photo in Stage */}
+        <Stage>
+          {/* Pixel explosion - inside Stage for correct positioning */}
+          <PixelExplosion
+            imageSrc={photoData.image}
+            trigger={isExploding}
+            onComplete={handleExplosionComplete}
+            pixelSize={100}
+          />
 
-        {/* Timer overlay */}
+          <div
+            className="absolute inset-0"
+            style={{ opacity: isExploding ? 0 : 1 }}
+          >
+            {effectIntensity > 0 ? (
+              <PixelatedImage
+                src={photoData.image}
+                pixelation={effectIntensity}
+                className="absolute inset-0 w-full h-full"
+              />
+            ) : (
+              <img
+                src={photoData.image}
+                alt="Boop"
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
+              />
+            )}
+
+            
+            {/* Text overlay */}
+            {photoData.text && (
+              <div
+                className="absolute left-0 right-0 text-center px-5 py-3 bg-black/50 text-white text-xl font-medium break-words z-10 pointer-events-none"
+                style={{
+                  top: `${photoData.textPosition ?? 50}%`,
+                  transform: 'translateY(-50%)'
+                }}
+              >
+                {photoData.text}
+              </div>
+            )}
+          </div>
+        </Stage>
+
+        {/* Timer - fixed positioning with safe area */}
         {!isExploding && (
-          <div className="absolute top-5 right-5 z-10 bg-black/60 rounded-full p-1">
-            <TimerRing size={60} strokeWidth={4} />
+          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-end z-20">
+            <div className="bg-black/60 rounded-full p-1">
+              <TimerRing size={60} strokeWidth={4} />
+            </div>
           </div>
         )}
-
-        {/* Photo container */}
-        <div
-          className="absolute inset-0"
-          style={{ opacity: isExploding ? 0 : 1 }}
-        >
-          {effectIntensity > 0 ? (
-            <PixelatedImage
-              src={photoData.image}
-              pixelation={effectIntensity}
-              className="absolute inset-0 w-full h-full"
-            />
-          ) : (
-            <img
-              src={photoData.image}
-              alt="Boop"
-              className="absolute inset-0 w-full h-full object-cover"
-              draggable={false}
-            />
-          )}
-
-          {/* Text overlay */}
-          {photoData.text && (
-            <div
-              className="absolute left-0 right-0 text-center px-5 py-3 bg-black/50 text-white text-xl font-medium break-words z-10 pointer-events-none"
-              style={{
-                top: `${photoData.textPosition ?? 50}%`,
-                transform: 'translateY(-50%)'
-              }}
-            >
-              {photoData.text}
-            </div>
-          )}
-        </div>
       </div>
     )
   }
