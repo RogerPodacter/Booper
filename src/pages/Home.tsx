@@ -964,8 +964,7 @@ export default function Home() {
                 className="w-full px-5 py-3 bg-black/50 text-white text-xl font-medium text-center focus:outline-none"
                 placeholder="Add text..."
                 value={overlayText}
-                onChange={(e) => setOverlayText(e.target.value.slice(0, 200))}
-                maxLength={200}
+                onChange={(e) => setOverlayText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setIsEditingText(false)
                 }}

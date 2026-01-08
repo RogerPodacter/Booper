@@ -53,7 +53,6 @@ For push notifications, see [full setup](#deploy-your-own-cloudflare-pages) belo
 |----------|-------|
 | Content size | 3 MB max (after compression) |
 | Video recording | 15 seconds |
-| Text overlay | 200 characters |
 | View duration (photos) | 1–10 seconds |
 | Rate limit | 50 boops/IP/hour |
 | Unopened expiration | 7 days |
