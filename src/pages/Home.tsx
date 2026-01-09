@@ -908,7 +908,7 @@ export default function Home() {
           autoPlay
           playsInline
           muted
-          className={`pointer-events-none user-select-none absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${step !== 'camera' ? 'invisible' : ''} ${!cameraReady ? 'opacity-0' : ''}`}
+          className={`pointer-events-none user-select-none absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''} ${step === 'sending' || !cameraReady ? 'invisible' : ''}`}
         />
 
         {/* Edit content - visible only in edit step */}
@@ -931,7 +931,7 @@ export default function Home() {
           />
         )}
 
-        {/* Text overlay - inside Stage for proper positioning */}
+        {/* Text overlay - inside Stage */}
         {step === 'edit' && (overlayText || isEditingText) && (
           <div
             className="absolute left-0 right-0 z-10 touch-none"
@@ -980,233 +980,221 @@ export default function Home() {
             )}
           </div>
         )}
-      </Stage>
 
-      {/* === CAMERA UI === */}
-      {step === 'camera' && (
-        <>
-          {/* Camera error fallback */}
-          {cameraError && (
-            <div className="fixed inset-0 flex flex-col items-center justify-center bg-black z-10 p-5">
-              <p className="text-zinc-400 text-center mb-4">{cameraError}</p>
-              <button
-                className="btn btn-primary max-w-xs"
-                onClick={() => libraryInputRef.current?.click()}
-              >
-                Choose from Library
-              </button>
-            </div>
-          )}
+        {/* === CAMERA CONTROLS (inside Stage) === */}
+        {step === 'camera' && (
+          <>
+            {/* Top controls */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20">
+              {/* Flash button */}
+              {(facingMode === 'user' || hasFlash) ? (
+                <button
+                  className={`w-11 h-11 rounded-full flex items-center justify-center ${flashEnabled ? 'bg-yellow-500' : 'bg-zinc-700/80'} ${isRecording || recordingStartingRef.current ? 'opacity-50' : ''}`}
+                  onClick={toggleFlash}
+                  disabled={isRecording || recordingStartingRef.current}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    {!flashEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
+                  </svg>
+                </button>
+              ) : (
+                <div className="w-11" />
+              )}
 
-          {/* Top controls */}
-          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20">
-            {/* Show flash button for front camera (screen flash) or back camera with torch */}
-            {(facingMode === 'user' || hasFlash) ? (
-              <button
-                className={`w-11 h-11 rounded-full flex items-center justify-center ${flashEnabled ? 'bg-yellow-500' : 'bg-zinc-700/80'} ${isRecording || recordingStartingRef.current ? 'opacity-50' : ''}`}
-                onClick={toggleFlash}
-                disabled={isRecording || recordingStartingRef.current}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  {!flashEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
-                </svg>
-              </button>
-            ) : (
-              <div className="w-11" />
-            )}
-
-            <div className="flex items-center gap-2">
-              {notifStatus === 'prompt' && (
+              <div className="flex items-center gap-2">
+                {notifStatus === 'prompt' && (
+                  <button
+                    className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
+                    onClick={handleEnableNotifications}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </button>
+                )}
                 <button
                   className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-                  onClick={handleEnableNotifications}
+                  onClick={openHistory}
+                  aria-label="History"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
                   </svg>
                 </button>
-              )}
-              <button
-                className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-                onClick={openHistory}
-                aria-label="History"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-              </button>
-              <button
-                className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-                onClick={() => setShowInfo(true)}
-                aria-label="About Booper"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="16" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12.01" y2="8" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Bottom controls */}
-          <div className="fixed bottom-0 left-0 right-0 p-5 pb-safe z-20">
-            <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
-              <button
-                className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-                onClick={() => libraryInputRef.current?.click()}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </button>
-
-              <div className="relative w-[84px] h-[84px] flex items-center justify-center">
-                {/* Progress ring SVG */}
-                <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 84 84">
-                  {isRecording && (
-                    <circle cx="42" cy="42" r="39" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="4" />
-                  )}
-                  <circle
-                    cx="42" cy="42" r="39"
-                    fill="none" stroke="#ef4444" strokeWidth="4" strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 39}
-                    strokeDashoffset={2 * Math.PI * 39 * (1 - recordingProgress)}
-                    opacity={isRecording ? 1 : 0}
-                  />
-                </svg>
-
-                {/* Shutter button */}
                 <button
-                  className={`w-[72px] h-[72px] rounded-full border-[3px] flex items-center justify-center transition-all disabled:opacity-50 ${
-                    isRecording ? 'border-red-500 scale-90' : 'border-white active:scale-95'
-                  }`}
-                  onPointerDown={handleShutterDown}
-                  onPointerUp={() => {
-                    handleShutterUp()
-                    if (!isRecording && !recordingStartingRef.current && !mediaRecorderRef.current) {
-                      handleShutterTap()
-                    }
-                  }}
-                  onPointerLeave={handleShutterUp}
-                  onPointerCancel={handleShutterUp}
-                  disabled={!cameraReady && !cameraError}
+                  className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
+                  onClick={() => setShowInfo(true)}
+                  aria-label="About Booper"
                 >
-                  <div className={`rounded-full transition-all ${
-                    isRecording ? 'w-7 h-7 bg-red-500 rounded-lg' : 'w-[60px] h-[60px] bg-white'
-                  }`} />
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                  </svg>
                 </button>
               </div>
-
-              <button
-                className={`w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center ${isRecording || recordingStartingRef.current ? 'opacity-50' : ''}`}
-                onClick={flipCamera}
-                disabled={isRecording || recordingStartingRef.current}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <path d="M21 2v6h-6" />
-                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                  <path d="M3 22v-6h6" />
-                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                </svg>
-              </button>
             </div>
-          </div>
-        </>
-      )}
 
-      {/* === EDIT UI (controls only, content is in Stage) === */}
-      {step === 'edit' && (photo || video) && (
-        <>
-          {/* Top controls */}
-          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-between items-center z-20">
-            {/* Back button */}
-            <button
-              className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
-              onClick={handleBack}
-              aria-label="Back"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-
-            {/* Mute/unmute button for video */}
-            {video ? (
-              <button
-                className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
-                onClick={() => setPreviewMuted(!previewMuted)}
-                aria-label={previewMuted ? 'Unmute' : 'Mute'}
-              >
-                {previewMuted ? (
+            {/* Bottom controls */}
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-10 pt-5 z-20">
+              <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
+                <button
+                  className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
+                  onClick={() => libraryInputRef.current?.click()}
+                >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <line x1="23" y1="9" x2="17" y2="15" />
-                    <line x1="17" y1="9" x2="23" y2="15" />
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
                   </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                  </svg>
-                )}
-              </button>
-            ) : (
-              <div className="w-11" />
-            )}
-          </div>
+                </button>
 
-          {/* Timer picker popup */}
-          {showTimerPicker && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50" onClick={() => setShowTimerPicker(false)}>
-              <div className="bg-zinc-800 rounded-2xl p-2 flex gap-1" onClick={(e) => e.stopPropagation()}>
-                {[1, 2, 3, 5, 7, 10].map((t) => (
+                <div className="relative w-[84px] h-[84px] flex items-center justify-center">
+                  {/* Progress ring SVG */}
+                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 84 84">
+                    {isRecording && (
+                      <circle cx="42" cy="42" r="39" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="4" />
+                    )}
+                    <circle
+                      cx="42" cy="42" r="39"
+                      fill="none" stroke="#ef4444" strokeWidth="4" strokeLinecap="round"
+                      strokeDasharray={2 * Math.PI * 39}
+                      strokeDashoffset={2 * Math.PI * 39 * (1 - recordingProgress)}
+                      opacity={isRecording ? 1 : 0}
+                    />
+                  </svg>
+
+                  {/* Shutter button */}
                   <button
-                    key={t}
-                    className={`w-12 h-12 rounded-xl font-medium transition-all ${
-                      duration === t ? 'bg-white text-black' : 'text-white hover:bg-zinc-700'
+                    className={`w-[72px] h-[72px] rounded-full border-[3px] flex items-center justify-center transition-all disabled:opacity-50 ${
+                      isRecording ? 'border-red-500 scale-90' : 'border-white active:scale-95'
                     }`}
-                    onClick={() => {
-                      setDuration(t)
-                      setShowTimerPicker(false)
+                    onPointerDown={handleShutterDown}
+                    onPointerUp={() => {
+                      handleShutterUp()
+                      if (!isRecording && !recordingStartingRef.current && !mediaRecorderRef.current) {
+                        handleShutterTap()
+                      }
                     }}
+                    onPointerLeave={handleShutterUp}
+                    onPointerCancel={handleShutterUp}
+                    disabled={!cameraReady && !cameraError}
                   >
-                    {t}s
+                    <div className={`rounded-full transition-all ${
+                      isRecording ? 'w-7 h-7 bg-red-500 rounded-lg' : 'w-[60px] h-[60px] bg-white'
+                    }`} />
                   </button>
-                ))}
+                </div>
+
+                <button
+                  className={`w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center ${isRecording || recordingStartingRef.current ? 'opacity-50' : ''}`}
+                  onClick={flipCamera}
+                  disabled={isRecording || recordingStartingRef.current}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <path d="M21 2v6h-6" />
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                    <path d="M3 22v-6h6" />
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                  </svg>
+                </button>
               </div>
             </div>
-          )}
+          </>
+        )}
 
-          {/* Bottom controls */}
-          <div className="fixed bottom-0 left-0 right-0 p-5 pb-safe z-20">
-            <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
+        {/* === EDIT CONTROLS (inside Stage) === */}
+        {step === 'edit' && (photo || video) && (
+          <>
+            {/* Top controls */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20">
+              {/* Back button */}
               <button
-                className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
-                onClick={() => setIsEditingText(true)}
+                className="w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center"
+                onClick={handleBack}
+                aria-label="Back"
               >
-                <span className="text-white font-medium text-lg">Aa</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
 
-              <button
-                className="px-10 py-4 rounded-full bg-white flex items-center justify-center active:scale-95 transition-transform"
-                onClick={handleSend}
-              >
-                <span className="text-black font-semibold text-lg">Send</span>
-              </button>
-
-              {/* Timer button for photos, spacer for videos */}
+              {/* Mute/unmute button for video */}
               {video ? (
-                <div className="w-11 h-11" />
+                <button
+                  className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
+                  onClick={() => setPreviewMuted(!previewMuted)}
+                  aria-label={previewMuted ? 'Unmute' : 'Mute'}
+                >
+                  {previewMuted ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <line x1="23" y1="9" x2="17" y2="15" />
+                      <line x1="17" y1="9" x2="23" y2="15" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                    </svg>
+                  )}
+                </button>
               ) : (
+                <div className="w-11" />
+              )}
+            </div>
+
+            {/* Timer picker popup */}
+            {showTimerPicker && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50" onClick={() => setShowTimerPicker(false)}>
+                <div className="bg-zinc-800 rounded-2xl p-2 flex gap-1" onClick={(e) => e.stopPropagation()}>
+                  {[1, 2, 3, 5, 7, 10].map((t) => (
+                    <button
+                      key={t}
+                      className={`w-12 h-12 rounded-xl font-medium transition-all ${
+                        duration === t ? 'bg-white text-black' : 'text-white hover:bg-zinc-700'
+                      }`}
+                      onClick={() => {
+                        setDuration(t)
+                        setShowTimerPicker(false)
+                      }}
+                    >
+                      {t}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom controls */}
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-10 pt-5 z-20">
+              <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
                 <button
                   className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
+                  onClick={() => setIsEditingText(true)}
+                >
+                  <span className="text-white font-medium text-lg">Aa</span>
+                </button>
+
+                <div className="h-[84px] flex items-center justify-center">
+                  <button
+                    className="px-10 py-4 rounded-full bg-white flex items-center justify-center active:scale-95 transition-transform"
+                    onClick={handleSend}
+                  >
+                    <span className="text-black font-semibold text-lg">Send</span>
+                  </button>
+                </div>
+
+                {/* Timer button for photos, spacer for videos */}
+                {video ? (
+                  <div className="w-11 h-11" />
+                ) : (
+                  <button
+                    className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
                   onClick={() => setShowTimerPicker(true)}
                 >
                   <span className="text-white font-medium text-sm">{duration}s</span>
@@ -1221,13 +1209,27 @@ export default function Home() {
         </>
       )}
 
-      {/* === SENDING UI === */}
-      {step === 'sending' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-30">
-          <div className="w-10 h-10 border-[3px] border-zinc-700 border-t-accent rounded-full animate-spin-slow" />
-          <p className="mt-4 text-zinc-400">Finishing up...</p>
-        </div>
-      )}
+        {/* === SENDING UI (inside Stage) === */}
+        {step === 'sending' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-30">
+            <div className="w-10 h-10 border-[3px] border-zinc-700 border-t-accent rounded-full animate-spin-slow" />
+            <p className="mt-4 text-zinc-400">Finishing up...</p>
+          </div>
+        )}
+
+        {/* Camera error fallback (inside Stage) */}
+        {step === 'camera' && cameraError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 p-5">
+            <p className="text-zinc-400 text-center mb-4">{cameraError}</p>
+            <button
+              className="btn btn-primary max-w-xs"
+              onClick={() => libraryInputRef.current?.click()}
+            >
+              Choose from Library
+            </button>
+          </div>
+        )}
+      </Stage>
 
       {/* Hidden file input for gallery */}
       <input

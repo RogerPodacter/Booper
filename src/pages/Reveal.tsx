@@ -383,31 +383,31 @@ export default function Reveal() {
               </div>
             )}
           </div>
-        </Stage>
 
-        {/* Mute/unmute button - fixed positioning with safe area */}
-        {!isExploding && (
-          <div className="fixed top-0 left-0 right-0 p-4 pt-safe z-20">
-            <button
-              className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
-              onClick={() => setVideoMuted(!videoMuted)}
-              aria-label={videoMuted ? 'Unmute' : 'Mute'}
-            >
-              {videoMuted ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <line x1="23" y1="9" x2="17" y2="15" />
-                  <line x1="17" y1="9" x2="23" y2="15" />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-              )}
-            </button>
-          </div>
-        )}
+          {/* Mute/unmute button - inside Stage */}
+          {!isExploding && (
+            <div className="absolute top-0 left-0 right-0 p-4 z-20">
+              <button
+                className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center"
+                onClick={() => setVideoMuted(!videoMuted)}
+                aria-label={videoMuted ? 'Unmute' : 'Mute'}
+              >
+                {videoMuted ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <line x1="23" y1="9" x2="17" y2="15" />
+                    <line x1="17" y1="9" x2="23" y2="15" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
+        </Stage>
       </div>
     )
   }
@@ -461,16 +461,16 @@ export default function Reveal() {
               </div>
             )}
           </div>
-        </Stage>
 
-        {/* Timer - fixed positioning with safe area */}
-        {!isExploding && (
-          <div className="fixed top-0 left-0 right-0 p-4 pt-safe flex justify-end z-20">
-            <div className="bg-black/60 rounded-full p-1">
-              <TimerRing size={60} strokeWidth={4} />
+          {/* Timer - inside Stage */}
+          {!isExploding && (
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-end z-20">
+              <div className="bg-black/60 rounded-full p-1">
+                <TimerRing size={60} strokeWidth={4} />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </Stage>
       </div>
     )
   }

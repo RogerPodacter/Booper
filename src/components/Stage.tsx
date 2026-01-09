@@ -12,7 +12,7 @@ interface StageProps {
  */
 export default function Stage({ children, className = '' }: StageProps) {
   return (
-    <div className="flex-1 flex items-center justify-center bg-black">
+    <div className="flex-1 flex items-start justify-center bg-black">
       <div
         className={`relative overflow-hidden ${className}`}
         style={{
