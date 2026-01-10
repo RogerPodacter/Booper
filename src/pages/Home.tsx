@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { PiPaperPlaneRightFill } from 'react-icons/pi'
 import { generateKey, exportKey, encrypt, compressImage } from '../crypto'
 import Stage from '../components/Stage'
 
@@ -1181,10 +1182,11 @@ export default function Home() {
 
                 <div className="h-[88px] flex items-center justify-center">
                   <button
-                    className="px-10 py-4 rounded-full bg-white flex items-center justify-center active:scale-95 transition-transform"
+                    className="px-10 py-4 rounded-full bg-white flex items-center justify-center gap-2 active:scale-95 transition-transform"
                     onClick={handleSend}
                   >
                     <span className="text-black font-semibold text-lg">Send</span>
+                    <PiPaperPlaneRightFill className="text-black" size={22} />
                   </button>
                 </div>
 
