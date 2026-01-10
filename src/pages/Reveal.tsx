@@ -241,7 +241,7 @@ export default function Reveal() {
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#ff3b5c"
+            stroke="var(--color-accent)"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}

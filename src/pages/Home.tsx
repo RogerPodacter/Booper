@@ -556,7 +556,7 @@ export default function Home() {
     // Start long press timer - 80ms to trigger video (audio acquisition adds natural delay)
     longPressTimerRef.current = window.setTimeout(() => {
       startRecording()
-    }, 250)
+    }, 150)
   }, [cameraReady, cameraError, startRecording])
 
   const handleShutterUp = useCallback(() => {
@@ -1052,42 +1052,41 @@ export default function Home() {
                   </svg>
                 </button>
 
-                <div className="relative w-[84px] h-[84px] flex items-center justify-center">
-                  {/* Progress ring SVG */}
-                  <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 84 84">
-                    {isRecording && (
-                      <circle cx="42" cy="42" r="39" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="4" />
-                    )}
-                    <circle
-                      cx="42" cy="42" r="39"
-                      fill="none" stroke="#ef4444" strokeWidth="4" strokeLinecap="round"
-                      strokeDasharray={2 * Math.PI * 39}
-                      strokeDashoffset={2 * Math.PI * 39 * (1 - recordingProgress)}
-                      opacity={isRecording ? 1 : 0}
-                    />
-                  </svg>
-
+                <button
+                  className="relative w-[88px] h-[88px] flex items-center justify-center disabled:opacity-50"
+                  onPointerDown={handleShutterDown}
+                  onPointerUp={() => {
+                    handleShutterUp()
+                    if (!isRecording && !recordingStartingRef.current && !mediaRecorderRef.current) {
+                      handleShutterTap()
+                    }
+                  }}
+                  onPointerLeave={handleShutterUp}
+                  onPointerCancel={handleShutterUp}
+                  disabled={!cameraReady && !cameraError}
+                >
                   {/* Shutter button */}
-                  <button
-                    className={`w-[72px] h-[72px] rounded-full border-[3px] flex items-center justify-center transition-all disabled:opacity-50 ${
-                      isRecording ? 'border-red-500 scale-90' : 'border-white active:scale-95'
-                    }`}
-                    onPointerDown={handleShutterDown}
-                    onPointerUp={() => {
-                      handleShutterUp()
-                      if (!isRecording && !recordingStartingRef.current && !mediaRecorderRef.current) {
-                        handleShutterTap()
-                      }
-                    }}
-                    onPointerLeave={handleShutterUp}
-                    onPointerCancel={handleShutterUp}
-                    disabled={!cameraReady && !cameraError}
-                  >
-                    <div className={`rounded-full transition-all ${
-                      isRecording ? 'w-7 h-7 bg-red-500 rounded-lg' : 'w-[60px] h-[60px] bg-white'
-                    }`} />
-                  </button>
-                </div>
+                  <div className={`w-full h-full rounded-full transition-all ${
+                    isRecording
+                      ? 'bg-accent'
+                      : 'bg-transparent border-[6px] border-white active:scale-95'
+                  }`} />
+
+                  {/* Progress ring - dark stroke that grows clockwise from 12 o'clock */}
+                  {isRecording && (
+                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 88 88">
+                      <circle
+                        cx="44" cy="44" r="39"
+                        fill="none"
+                        stroke="rgba(0,0,0,0.4)"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 39}
+                        strokeDashoffset={2 * Math.PI * 39 * (1 - recordingProgress)}
+                      />
+                    </svg>
+                  )}
+                </button>
 
                 <button
                   className={`w-11 h-11 rounded-full bg-zinc-700/80 flex items-center justify-center ${isRecording || recordingStartingRef.current ? 'opacity-50' : ''}`}
@@ -1180,7 +1179,7 @@ export default function Home() {
                   <span className="text-white font-medium text-lg">Aa</span>
                 </button>
 
-                <div className="h-[84px] flex items-center justify-center">
+                <div className="h-[88px] flex items-center justify-center">
                   <button
                     className="px-10 py-4 rounded-full bg-white flex items-center justify-center active:scale-95 transition-transform"
                     onClick={handleSend}
