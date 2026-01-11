@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { PiPaperPlaneRightFill } from 'react-icons/pi'
+import { PiPaperPlaneRightFill, PiDownloadSimpleBold } from 'react-icons/pi'
 import { generateKey, exportKey, encrypt, compressImage } from '../crypto'
 import Stage from '../components/Stage'
 
@@ -54,6 +54,7 @@ export default function Home() {
   const [recordingProgress, setRecordingProgress] = useState(0)
 
   const [previewMuted, setPreviewMuted] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -920,6 +921,249 @@ export default function Home() {
     setStep('camera')
   }
 
+  // Save media with text overlay burned in
+  async function handleSaveMedia() {
+    if (isSaving) return
+    setIsSaving(true)
+
+    try {
+      if (photo && !video) {
+        // Save photo with text overlay
+        await savePhotoWithOverlay()
+      } else if (video) {
+        // Save video with text overlay
+        await saveVideoWithOverlay()
+      }
+      showToast('Saved!')
+    } catch (err) {
+      console.error('Save failed:', err)
+      showToast('Save failed')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function savePhotoWithOverlay() {
+    if (!photo) return
+
+    // Create a canvas to render the photo with text
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
+    const img = new Image()
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = reject
+      img.src = photo
+    })
+
+    // Use image dimensions (should be 9:16 from capture)
+    canvas.width = img.width
+    canvas.height = img.height
+
+    // Draw the image
+    ctx.drawImage(img, 0, 0)
+
+    // Draw text overlay if present
+    if (overlayText) {
+      const fontSize = Math.round(canvas.width * 0.055) // ~5.5% of width
+      ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+
+      const textY = (textPosition / 100) * canvas.height
+      const padding = fontSize * 0.6
+
+      // Draw semi-transparent background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+      ctx.fillRect(0, textY - fontSize / 2 - padding, canvas.width, fontSize + padding * 2)
+
+      // Draw text
+      ctx.fillStyle = 'white'
+      ctx.fillText(overlayText, canvas.width / 2, textY)
+    }
+
+    // Convert to blob and download
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b)
+        else reject(new Error('Failed to create blob'))
+      }, 'image/jpeg', 0.92)
+    })
+
+    downloadBlob(blob, `booper-${Date.now()}.jpg`)
+  }
+
+  async function saveVideoWithOverlay() {
+    if (!video) return
+
+    // Create hidden video element to read frames from
+    const sourceVideo = document.createElement('video')
+    sourceVideo.src = video
+    sourceVideo.muted = true
+    sourceVideo.playsInline = true
+
+    await new Promise<void>((resolve, reject) => {
+      sourceVideo.onloadedmetadata = () => resolve()
+      sourceVideo.onerror = reject
+    })
+
+    // Target 9:16 at reasonable resolution
+    const targetWidth = Math.min(1080, sourceVideo.videoWidth)
+    const targetHeight = Math.round(targetWidth * (16 / 9))
+
+    // Create canvas for rendering
+    const canvas = document.createElement('canvas')
+    canvas.width = targetWidth
+    canvas.height = targetHeight
+    const ctx = canvas.getContext('2d')!
+
+    // Calculate source crop for center-cover
+    const srcRatio = sourceVideo.videoWidth / sourceVideo.videoHeight
+    const targetRatio = 9 / 16
+    let srcX = 0, srcY = 0, srcW = sourceVideo.videoWidth, srcH = sourceVideo.videoHeight
+    if (srcRatio > targetRatio) {
+      srcW = sourceVideo.videoHeight * targetRatio
+      srcX = (sourceVideo.videoWidth - srcW) / 2
+    } else {
+      srcH = sourceVideo.videoWidth / targetRatio
+      srcY = (sourceVideo.videoHeight - srcH) / 2
+    }
+
+    // Mirror if it was recorded with selfie camera
+    const shouldMirror = facingMode === 'user'
+
+    // Set up MediaRecorder to capture canvas
+    const stream = canvas.captureStream(30)
+
+    // Add audio track from source video if available
+    // We need to create an AudioContext to route audio
+    let audioCtx: AudioContext | null = null
+    let audioSource: MediaElementAudioSourceNode | null = null
+    let audioDestination: MediaStreamAudioDestinationNode | null = null
+
+    try {
+      audioCtx = new AudioContext()
+      audioSource = audioCtx.createMediaElementSource(sourceVideo)
+      audioDestination = audioCtx.createMediaStreamDestination()
+      audioSource.connect(audioDestination)
+      audioSource.connect(audioCtx.destination) // Also play to speakers (muted video, so this is for the stream)
+
+      // Add audio track to our stream
+      const audioTrack = audioDestination.stream.getAudioTracks()[0]
+      if (audioTrack) {
+        stream.addTrack(audioTrack)
+      }
+    } catch {
+      // Audio routing failed, continue without audio
+    }
+
+    // Determine output format
+    let mimeType: string | undefined
+    if (MediaRecorder.isTypeSupported('video/mp4')) {
+      mimeType = 'video/mp4'
+    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+      mimeType = 'video/webm;codecs=vp9'
+    } else if (MediaRecorder.isTypeSupported('video/webm')) {
+      mimeType = 'video/webm'
+    }
+
+    const recorder = new MediaRecorder(stream, {
+      ...(mimeType && { mimeType }),
+      videoBitsPerSecond: 2000000, // 2 Mbps for good quality save
+    })
+
+    const chunks: Blob[] = []
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data)
+    }
+
+    const recordingDone = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        const finalMimeType = recorder.mimeType || mimeType || 'video/webm'
+        resolve(new Blob(chunks, { type: finalMimeType }))
+      }
+    })
+
+    // Start recording
+    recorder.start()
+
+    // Play and render frames
+    sourceVideo.currentTime = 0
+    await sourceVideo.play()
+
+    const renderFrame = () => {
+      if (sourceVideo.ended || sourceVideo.paused) {
+        recorder.stop()
+        return
+      }
+
+      // Clear and set up mirroring if needed
+      ctx.save()
+      if (shouldMirror) {
+        ctx.translate(canvas.width, 0)
+        ctx.scale(-1, 1)
+      }
+
+      // Draw video frame with center-cover crop
+      ctx.drawImage(
+        sourceVideo,
+        srcX, srcY, srcW, srcH,
+        0, 0, canvas.width, canvas.height
+      )
+
+      ctx.restore()
+
+      // Draw text overlay if present
+      if (overlayText) {
+        const fontSize = Math.round(canvas.width * 0.055)
+        ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const textY = (textPosition / 100) * canvas.height
+        const padding = fontSize * 0.6
+
+        // Draw semi-transparent background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+        ctx.fillRect(0, textY - fontSize / 2 - padding, canvas.width, fontSize + padding * 2)
+
+        // Draw text
+        ctx.fillStyle = 'white'
+        ctx.fillText(overlayText, canvas.width / 2, textY)
+      }
+
+      requestAnimationFrame(renderFrame)
+    }
+
+    renderFrame()
+
+    // Wait for recording to complete
+    const blob = await recordingDone
+
+    // Cleanup
+    sourceVideo.pause()
+    sourceVideo.src = ''
+    if (audioCtx) {
+      audioCtx.close()
+    }
+
+    // Download
+    const ext = (recorder.mimeType || mimeType || '').includes('mp4') ? 'mp4' : 'webm'
+    downloadBlob(blob, `booper-${Date.now()}.${ext}`)
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   // Single render with all layers - video always mounted
   return (
     <div className="flex-1 flex flex-col bg-black relative overflow-hidden select-none">
@@ -1209,13 +1453,28 @@ export default function Home() {
 
             {/* Bottom controls */}
             <div className="absolute bottom-0 left-0 right-0 px-5 pb-10 pt-5 z-20">
-              <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
-                <button
-                  className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
-                  onClick={() => setIsEditingText(true)}
-                >
-                  <span className="text-white font-medium text-lg">Aa</span>
-                </button>
+              <div className="flex items-center justify-center gap-4 max-w-sm mx-auto">
+                {/* Left side: Text + Download buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
+                    onClick={() => setIsEditingText(true)}
+                  >
+                    <span className="text-white font-medium text-lg">Aa</span>
+                  </button>
+                  <button
+                    className={`w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center ${isSaving ? 'opacity-50' : ''}`}
+                    onClick={handleSaveMedia}
+                    disabled={isSaving}
+                    aria-label="Save to device"
+                  >
+                    {isSaving ? (
+                      <div className="w-5 h-5 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <PiDownloadSimpleBold className="text-white" size={20} />
+                    )}
+                  </button>
+                </div>
 
                 <div className="h-[88px] flex items-center justify-center">
                   <button
@@ -1229,16 +1488,18 @@ export default function Home() {
 
                 {/* Timer button for photos, spacer for videos */}
                 {video ? (
-                  <div className="w-11 h-11" />
+                  <div className="w-[92px]" />
                 ) : (
-                  <button
-                    className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
-                  onClick={() => setShowTimerPicker(true)}
-                >
-                  <span className="text-white font-medium text-sm">{duration}s</span>
-                </button>
-              )}
-            </div>
+                  <div className="w-[92px] flex justify-end">
+                    <button
+                      className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
+                      onClick={() => setShowTimerPicker(true)}
+                    >
+                      <span className="text-white font-medium text-sm">{duration}s</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
             {error && (
               <p className="text-accent text-sm text-center mt-3">{error}</p>
