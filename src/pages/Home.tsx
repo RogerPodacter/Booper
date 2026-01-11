@@ -943,10 +943,28 @@ export default function Home() {
     }
   }
 
+  // Shared helper to draw text overlay on a canvas
+  function drawTextOverlay(ctx: CanvasRenderingContext2D, width: number, height: number, text: string, position: number) {
+    const fontSize = Math.round(width * 0.055) // ~5.5% of width
+    ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    const textY = (position / 100) * height
+    const padding = fontSize * 0.6
+
+    // Draw semi-transparent background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    ctx.fillRect(0, textY - fontSize / 2 - padding, width, fontSize + padding * 2)
+
+    // Draw text
+    ctx.fillStyle = 'white'
+    ctx.fillText(text, width / 2, textY)
+  }
+
   async function savePhotoWithOverlay() {
     if (!photo) return
 
-    // Create a canvas to render the photo with text
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')!
     const img = new Image()
@@ -957,38 +975,16 @@ export default function Home() {
       img.src = photo
     })
 
-    // Use image dimensions (should be 9:16 from capture)
     canvas.width = img.width
     canvas.height = img.height
-
-    // Draw the image
     ctx.drawImage(img, 0, 0)
 
-    // Draw text overlay if present
     if (overlayText) {
-      const fontSize = Math.round(canvas.width * 0.055) // ~5.5% of width
-      ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-
-      const textY = (textPosition / 100) * canvas.height
-      const padding = fontSize * 0.6
-
-      // Draw semi-transparent background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-      ctx.fillRect(0, textY - fontSize / 2 - padding, canvas.width, fontSize + padding * 2)
-
-      // Draw text
-      ctx.fillStyle = 'white'
-      ctx.fillText(overlayText, canvas.width / 2, textY)
+      drawTextOverlay(ctx, canvas.width, canvas.height, overlayText, textPosition)
     }
 
-    // Convert to blob and download
     const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => {
-        if (b) resolve(b)
-        else reject(new Error('Failed to create blob'))
-      }, 'image/jpeg', 0.92)
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Failed to create blob')), 'image/jpeg', 0.92)
     })
 
     downloadBlob(blob, `booper-${Date.now()}.jpg`)
@@ -1114,23 +1110,8 @@ export default function Home() {
 
       ctx.restore()
 
-      // Draw text overlay if present
       if (overlayText) {
-        const fontSize = Math.round(canvas.width * 0.055)
-        ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-
-        const textY = (textPosition / 100) * canvas.height
-        const padding = fontSize * 0.6
-
-        // Draw semi-transparent background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-        ctx.fillRect(0, textY - fontSize / 2 - padding, canvas.width, fontSize + padding * 2)
-
-        // Draw text
-        ctx.fillStyle = 'white'
-        ctx.fillText(overlayText, canvas.width / 2, textY)
+        drawTextOverlay(ctx, canvas.width, canvas.height, overlayText, textPosition)
       }
 
       requestAnimationFrame(renderFrame)
