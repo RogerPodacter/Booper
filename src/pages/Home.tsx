@@ -22,6 +22,7 @@ const MAX_CONTENT_SIZE = 3 * 1024 * 1024 // 3MB - must match server limit in fun
 export default function Home() {
   const [photo, setPhoto] = useState<string | null>(null)
   const [video, setVideo] = useState<string | null>(null)
+  const [videoFromGallery, setVideoFromGallery] = useState(false)
   const [overlayText, setOverlayText] = useState('')
   const [textPosition, setTextPosition] = useState(50) // percentage from top
   const [isEditingText, setIsEditingText] = useState(false)
@@ -484,6 +485,7 @@ export default function Home() {
 
       recordingStartTimeRef.current = Date.now()
       setIsRecording(true)
+      setVideoFromGallery(false)
       if ('vibrate' in navigator) navigator.vibrate(50)
 
       // Update progress with requestAnimationFrame
@@ -692,10 +694,43 @@ export default function Home() {
     }
   }
 
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleMediaSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Handle video files
+    if (file.type.startsWith('video/')) {
+      // Check file size - videos have stricter limits due to base64 encoding overhead
+      if (file.size > 2.5 * 1024 * 1024) {
+        setError('Video too large. Max ~2.5MB. Try recording instead.')
+        return
+      }
+
+      try {
+        const videoUrl = URL.createObjectURL(file)
+
+        // Check video duration
+        const duration = await getVideoDuration(videoUrl)
+        if (duration > MAX_VIDEO_DURATION) {
+          URL.revokeObjectURL(videoUrl)
+          setError(`Video too long. Max ${MAX_VIDEO_DURATION} seconds.`)
+          return
+        }
+
+        // Clear any existing photo
+        if (photo) setPhoto(null)
+
+        setVideo(videoUrl)
+        setVideoFromGallery(true)
+        setStep('edit')
+        setError('')
+      } catch {
+        setError('Failed to process video.')
+      }
+      return
+    }
+
+    // Handle image files
     if (file.size > 10 * 1024 * 1024) {
       setError('Image too large. Max 10MB.')
       return
@@ -763,7 +798,7 @@ export default function Home() {
           video: videoDataUrl,
           text: overlayText || undefined,
           textPosition: overlayText ? textPosition : undefined,
-          mirrored: facingMode === 'user' || undefined
+          mirrored: (facingMode === 'user' && !videoFromGallery) || undefined
         }
       } else {
         contentObj = {
@@ -860,6 +895,7 @@ export default function Home() {
     if (video) URL.revokeObjectURL(video)
     setPhoto(null)
     setVideo(null)
+    setVideoFromGallery(false)
     setOverlayText('')
     setTextPosition(50)
     setIsEditingText(false)
@@ -875,6 +911,7 @@ export default function Home() {
     if (video) URL.revokeObjectURL(video)
     setPhoto(null)
     setVideo(null)
+    setVideoFromGallery(false)
     setOverlayText('')
     setTextPosition(50)
     setIsEditingText(false)
@@ -916,7 +953,7 @@ export default function Home() {
         {step === 'edit' && video && (
           <video
             src={video}
-            className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' && !videoFromGallery ? 'scale-x-[-1]' : ''}`}
             autoPlay
             loop
             muted={previewMuted}
@@ -1236,8 +1273,8 @@ export default function Home() {
       <input
         ref={libraryInputRef}
         type="file"
-        accept="image/*"
-        onChange={handlePhotoSelect}
+        accept="image/*,video/*"
+        onChange={handleMediaSelect}
         className="hidden"
       />
 
@@ -1448,6 +1485,20 @@ function formatRelativeTime(timestamp: number): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
   return new Date(timestamp).toLocaleDateString()
+}
+
+// Helper to get video duration
+function getVideoDuration(videoUrl: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      resolve(video.duration)
+      URL.revokeObjectURL(video.src)
+    }
+    video.onerror = () => reject(new Error('Failed to load video'))
+    video.src = videoUrl
+  })
 }
 
 // Helper to convert VAPID key
