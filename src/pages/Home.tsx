@@ -17,11 +17,13 @@ const HISTORY_KEY = 'booper_history'
 const ONBOARDING_KEY = 'booper_onboarded'
 const MAX_HISTORY = 50
 const MAX_VIDEO_DURATION = 15 // seconds
-const MAX_CONTENT_SIZE = 3 * 1024 * 1024 // 3MB - must match server limit in functions/api/secrets.ts
+const MAX_CONTENT_SIZE = 15 * 1024 * 1024 // 15MB - must match server limit in functions/api/secrets.ts
+const MAX_RAW_FILE_SIZE = Math.floor(MAX_CONTENT_SIZE * 0.75) // ~75% to leave room for base64 (~33%) + encryption overhead
 
 export default function Home() {
   const [photo, setPhoto] = useState<string | null>(null)
   const [video, setVideo] = useState<string | null>(null)
+  const [videoFromGallery, setVideoFromGallery] = useState(false)
   const [overlayText, setOverlayText] = useState('')
   const [textPosition, setTextPosition] = useState(50) // percentage from top
   const [isEditingText, setIsEditingText] = useState(false)
@@ -30,7 +32,7 @@ export default function Home() {
   const [step, setStep] = useState<Step>('camera')
   const [error, setError] = useState('')
   const [notifStatus, setNotifStatus] = useState<NotificationStatus>('loading')
-  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false })
+  const [toast, setToast] = useState<{ message: string; visible: boolean; isError?: boolean }>({ message: '', visible: false })
   const [showInfo, setShowInfo] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(ONBOARDING_KEY))
 
@@ -484,6 +486,7 @@ export default function Home() {
 
       recordingStartTimeRef.current = Date.now()
       setIsRecording(true)
+      setVideoFromGallery(false)
       if ('vibrate' in navigator) navigator.vibrate(50)
 
       // Update progress with requestAnimationFrame
@@ -692,27 +695,59 @@ export default function Home() {
     }
   }
 
-  async function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleMediaSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image too large. Max 10MB.')
+    // Reset input so re-selecting the same file triggers onChange
+    e.target.value = ''
+
+    // Check file size
+    if (file.size > MAX_RAW_FILE_SIZE) {
+      showToast(`File too large. Max ${Math.floor(MAX_RAW_FILE_SIZE / 1024 / 1024)}MB.`, true)
       return
     }
 
-    try {
-      const compressed = await compressImage(file)
-      setPhoto(compressed)
-      setStep('edit')
-      setError('')
-    } catch {
-      setError('Failed to process image.')
+    // Handle video files
+    if (file.type.startsWith('video/')) {
+      const videoUrl = URL.createObjectURL(file)
+      try {
+        const duration = await getVideoDuration(videoUrl)
+        if (Math.floor(duration) > MAX_VIDEO_DURATION) {
+          URL.revokeObjectURL(videoUrl)
+          showToast(`Video too long (${Math.floor(duration)}s). Max ${MAX_VIDEO_DURATION}s.`, true)
+          return
+        }
+        setPhoto(null)
+        setVideo(videoUrl)
+        setVideoFromGallery(true)
+        setStep('edit')
+        setError('')
+      } catch {
+        URL.revokeObjectURL(videoUrl)
+        showToast('Failed to process video.', true)
+      }
+      return
+    }
+
+    // Handle image files
+    if (file.type.startsWith('image/')) {
+      try {
+        const compressed = await compressImage(file)
+        setVideo(null) // useEffect handles URL revocation
+        setVideoFromGallery(false)
+        setPhoto(compressed)
+        setStep('edit')
+        setError('')
+      } catch {
+        showToast('Failed to process image.', true)
+      }
+      return
     }
   }
 
-  function showToast(message: string) {
-    setToast({ message, visible: true })
+  function showToast(message: string, isError = false) {
+    setToast({ message, visible: true, isError })
     setTimeout(() => setToast({ message: '', visible: false }), 3000)
   }
 
@@ -763,7 +798,7 @@ export default function Home() {
           video: videoDataUrl,
           text: overlayText || undefined,
           textPosition: overlayText ? textPosition : undefined,
-          mirrored: facingMode === 'user' || undefined
+          mirrored: (facingMode === 'user' && !videoFromGallery) || undefined
         }
       } else {
         contentObj = {
@@ -860,6 +895,7 @@ export default function Home() {
     if (video) URL.revokeObjectURL(video)
     setPhoto(null)
     setVideo(null)
+    setVideoFromGallery(false)
     setOverlayText('')
     setTextPosition(50)
     setIsEditingText(false)
@@ -875,6 +911,7 @@ export default function Home() {
     if (video) URL.revokeObjectURL(video)
     setPhoto(null)
     setVideo(null)
+    setVideoFromGallery(false)
     setOverlayText('')
     setTextPosition(50)
     setIsEditingText(false)
@@ -916,7 +953,7 @@ export default function Home() {
         {step === 'edit' && video && (
           <video
             src={video}
-            className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
+            className={`absolute inset-0 w-full h-full object-cover ${facingMode === 'user' && !videoFromGallery ? 'scale-x-[-1]' : ''}`}
             autoPlay
             loop
             muted={previewMuted}
@@ -1236,14 +1273,14 @@ export default function Home() {
       <input
         ref={libraryInputRef}
         type="file"
-        accept="image/*"
-        onChange={handlePhotoSelect}
+        accept="image/*,video/*"
+        onChange={handleMediaSelect}
         className="hidden"
       />
 
       {/* Toast notification */}
       {toast.visible && (
-        <div className="fixed top-0 left-0 right-0 bg-emerald-500 text-white text-center py-4 font-medium shadow-lg z-50 animate-slide-down">
+        <div className={`fixed top-0 left-0 right-0 text-white text-center py-4 font-medium shadow-lg z-50 animate-slide-down ${toast.isError ? 'bg-red-500' : 'bg-emerald-500'}`}>
           {toast.message}
         </div>
       )}
@@ -1448,6 +1485,21 @@ function formatRelativeTime(timestamp: number): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
   return new Date(timestamp).toLocaleDateString()
+}
+
+// Helper to get video duration (does not revoke URL - caller handles cleanup)
+function getVideoDuration(videoUrl: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.onloadedmetadata = () => {
+      const d = video.duration
+      Number.isFinite(d) ? resolve(d) : reject(new Error('Invalid duration'))
+    }
+    video.onerror = () => reject(new Error('Failed to load video'))
+    video.src = videoUrl
+    video.load()
+  })
 }
 
 // Helper to convert VAPID key

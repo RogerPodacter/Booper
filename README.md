@@ -51,7 +51,7 @@ For push notifications, see [full setup](#deploy-your-own-cloudflare-pages) belo
 
 | Resource | Limit |
 |----------|-------|
-| Content size | 3 MB max (after compression) |
+| Content size | 15 MB max |
 | Video recording | 15 seconds |
 | View duration (photos) | 1–10 seconds |
 | Rate limit | 50 boops/IP/hour |
@@ -130,7 +130,7 @@ Booper runs on Cloudflare's free tier. The practical limit is **~300-500 boops/d
 |----------|-----------|--------------|
 | KV writes | 1,000/day | 2 per send, 1 per reveal |
 | KV reads | 100,000/day | 2 per send, 2 per reveal, 1 per status |
-| KV storage | 1 GB | ~3 MB max per boop |
+| KV storage | 1 GB | ~15 MB max per boop |
 | Functions | 100,000/day | 1 per API call |
 
 **In practice**: ~500 sends/day if nobody opens them same-day, or ~333 full send+open cycles if they do. Great for personal use or small groups. If you expect public traffic, consider a paid tier.
@@ -261,7 +261,7 @@ Create an encrypted secret.
 }
 ```
 
-Limits: `id` 6–12 alphanumeric, meta ≤10KB, content ≤3MB, 50 creates/IP/hour.
+Limits: `id` 6–12 alphanumeric, meta ≤10KB, content ≤15MB, 50 creates/IP/hour.
 
 ### `GET /api/secrets/:id/status`
 
