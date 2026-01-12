@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { PiPaperPlaneRightFill } from 'react-icons/pi'
+import { PiPaperPlaneRightFill, PiDownloadSimpleBold } from 'react-icons/pi'
 import { generateKey, exportKey, encrypt, compressImage } from '../crypto'
 import Stage from '../components/Stage'
 
@@ -54,6 +54,7 @@ export default function Home() {
   const [recordingProgress, setRecordingProgress] = useState(0)
 
   const [previewMuted, setPreviewMuted] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -920,6 +921,63 @@ export default function Home() {
     setStep('camera')
   }
 
+  // Save video to device
+  async function handleSaveVideo() {
+    if (isSaving || !video) return
+    setIsSaving(true)
+
+    try {
+      const response = await fetch(video)
+      const blob = await response.blob()
+      const ext = getVideoExtension(blob.type)
+      const saved = await saveBlob(blob, `boop-${getTimestamp()}.${ext}`)
+      if (saved) showToast('Saved!')
+    } catch (err) {
+      console.error('Save failed:', err)
+      const message = (err as Error).message === 'Sharing not supported'
+        ? 'Saving not supported on this browser'
+        : 'Save failed'
+      showToast(message, true)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  function getTimestamp(): string {
+    const now = new Date()
+    const month = now.toLocaleString('en', { month: 'short' }).toLowerCase()
+    const day = now.getDate()
+    const hour = now.getHours()
+    const min = now.getMinutes().toString().padStart(2, '0')
+    const ampm = hour >= 12 ? 'pm' : 'am'
+    const hour12 = hour % 12 || 12
+    return `${month}${day}-${hour12}${min}${ampm}`
+  }
+
+  function getVideoExtension(mimeType: string): string {
+    if (mimeType.includes('webm')) return 'webm'
+    if (mimeType.includes('quicktime')) return 'mov'
+    if (mimeType.includes('ogg')) return 'ogv'
+    if (mimeType.includes('3gpp')) return '3gp'
+    return 'mp4'
+  }
+
+  async function saveBlob(blob: Blob, filename: string): Promise<boolean> {
+    const file = new File([blob], filename, { type: blob.type })
+
+    if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
+      throw new Error('Sharing not supported')
+    }
+
+    try {
+      await navigator.share({ files: [file] })
+      return true
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return false // User cancelled
+      throw err
+    }
+  }
+
   // Single render with all layers - video always mounted
   return (
     <div className="flex-1 flex flex-col bg-black relative overflow-hidden select-none">
@@ -1210,6 +1268,7 @@ export default function Home() {
             {/* Bottom controls */}
             <div className="absolute bottom-0 left-0 right-0 px-5 pb-10 pt-5 z-20">
               <div className="flex items-center justify-center gap-6 max-w-sm mx-auto">
+                {/* Left: Text button */}
                 <button
                   className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
                   onClick={() => setIsEditingText(true)}
@@ -1227,18 +1286,29 @@ export default function Home() {
                   </button>
                 </div>
 
-                {/* Timer button for photos, spacer for videos */}
+                {/* Right: Timer for photos, Download for videos */}
                 {video ? (
-                  <div className="w-11 h-11" />
+                  <button
+                    className={`w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center ${isSaving ? 'opacity-50' : ''}`}
+                    onClick={handleSaveVideo}
+                    disabled={isSaving}
+                    aria-label="Save to device"
+                  >
+                    {isSaving ? (
+                      <div className="w-5 h-5 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <PiDownloadSimpleBold className="text-white" size={20} />
+                    )}
+                  </button>
                 ) : (
                   <button
                     className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
-                  onClick={() => setShowTimerPicker(true)}
-                >
-                  <span className="text-white font-medium text-sm">{duration}s</span>
-                </button>
-              )}
-            </div>
+                    onClick={() => setShowTimerPicker(true)}
+                  >
+                    <span className="text-white font-medium text-sm">{duration}s</span>
+                  </button>
+                )}
+              </div>
 
             {error && (
               <p className="text-accent text-sm text-center mt-3">{error}</p>
