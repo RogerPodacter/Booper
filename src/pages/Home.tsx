@@ -943,6 +943,77 @@ export default function Home() {
     }
   }
 
+  // Save photo (with text overlay baked in) to device
+  async function handleSavePhoto() {
+    if (isSaving || !photo) return
+    setIsSaving(true)
+
+    try {
+      const img = new Image()
+      img.src = photo
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Failed to load image'))
+      })
+
+      const canvas = canvasRef.current
+      if (!canvas) return
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')!
+
+      ctx.drawImage(img, 0, 0)
+
+      // Draw text overlay if present
+      if (overlayText) {
+        const fontSize = Math.round(canvas.height * 0.035)
+        ctx.font = `500 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const textX = canvas.width / 2
+        const textY = canvas.height * (textPosition / 100)
+
+        // Measure text for background
+        const metrics = ctx.measureText(overlayText)
+        const padX = fontSize * 0.5
+        const padY = fontSize * 0.35
+        const bgHeight = fontSize + padY * 2
+        const bgWidth = metrics.width + padX * 2
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+        ctx.fillRect(textX - bgWidth / 2, textY - bgHeight / 2, bgWidth, bgHeight)
+
+        ctx.fillStyle = 'white'
+        ctx.fillText(overlayText, textX, textY)
+      }
+
+      canvas.toBlob(async (blob: Blob | null) => {
+        if (!blob) {
+          showToast('Save failed', true)
+          setIsSaving(false)
+          return
+        }
+        try {
+          const saved = await saveBlob(blob, `boop-${getTimestamp()}.jpg`)
+          if (saved) showToast('Saved!')
+        } catch (err) {
+          console.error('Save failed:', err)
+          const message = (err as Error).message === 'Sharing not supported'
+            ? 'Saving not supported on this browser'
+            : 'Save failed'
+          showToast(message, true)
+        } finally {
+          setIsSaving(false)
+        }
+      }, 'image/jpeg', 0.9)
+    } catch (err) {
+      console.error('Save failed:', err)
+      showToast('Save failed', true)
+      setIsSaving(false)
+    }
+  }
+
   function getTimestamp(): string {
     const now = new Date()
     const month = now.toLocaleString('en', { month: 'short' }).toLowerCase()
@@ -1301,12 +1372,28 @@ export default function Home() {
                     )}
                   </button>
                 ) : (
-                  <button
-                    className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
-                    onClick={() => setShowTimerPicker(true)}
-                  >
-                    <span className="text-white font-medium text-sm">{duration}s</span>
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      className="w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center"
+                      onClick={() => setShowTimerPicker(true)}
+                    >
+                      <span className="text-white font-medium text-sm">{duration}s</span>
+                    </button>
+                    {overlayText && (
+                      <button
+                        className={`w-11 h-11 rounded-full bg-zinc-700/60 flex items-center justify-center ${isSaving ? 'opacity-50' : ''}`}
+                        onClick={handleSavePhoto}
+                        disabled={isSaving}
+                        aria-label="Save to device"
+                      >
+                        {isSaving ? (
+                          <div className="w-5 h-5 border-2 border-zinc-500 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <PiDownloadSimpleBold className="text-white" size={20} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
